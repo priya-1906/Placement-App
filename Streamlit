@@ -1,0 +1,185 @@
+import streamlit as st
+import mysql.connector
+import pandas as pd
+from pyngrok import ngrok
+import time
+
+st.set_page_config(page_title="Guvi Placement Portal", layout="wide")
+st.title("\U0001F393 Guvi Placement Portal")
+
+def get_connection():
+    return mysql.connector.connect(
+        host="gateway01.ap-southeast-1.prod.aws.tidbcloud.com",
+        user="2VNJytV9sTN2QFc.root",
+        password="9RON9MkIJpQMCsbE",
+        database="Placement_portal",
+    )
+
+queries = {
+    "Student count per batch": """
+        SELECT course_batch, COUNT(*) AS student_count
+        FROM Students
+        GROUP BY course_batch;
+    """,
+
+    "Placed students with details": """
+        SELECT DISTINCT p.placement_id, s.student_id, s.name, s.age,
+                        p.placement_status, p.company_name, p.placement_date
+        FROM Placements p
+        JOIN Students s ON p.student_id = s.student_id
+        WHERE p.placement_status = 'Placed';
+    """,
+
+    "Not placed students with certifications": """
+        SELECT s.student_id, s.name,
+               MAX(COALESCE(p.certifications_earned, 0)) AS certifications_earned
+        FROM Students s
+        LEFT JOIN Programming p ON s.student_id = p.student_id
+        LEFT JOIN Placements pl ON s.student_id = pl.student_id
+        WHERE pl.student_id IS NULL
+        GROUP BY s.student_id, s.name;
+    """,
+
+    "Top 5 by latest project score": """
+        SELECT DISTINCT student_id, latest_project_score
+        FROM Programming
+        ORDER BY latest_project_score DESC
+        LIMIT 5;
+    """,
+
+    "Weakest soft skill performers": """
+        SELECT *
+        FROM SoftSkills
+        ORDER BY (communication + teamwork + presentation + leadership + critical_thinking + interpersonal_skills) ASC
+        LIMIT 5;
+    """,
+
+    "Highly certified students (>2)": """
+        SELECT DISTINCT student_id, certifications_earned
+        FROM Programming
+        WHERE certifications_earned > 2;
+    """,
+
+    "Avg. placement package per company": """
+        SELECT company_name,
+               AVG(placement_package) AS average_package
+        FROM Placements
+        WHERE placement_status = 'Placed'
+        GROUP BY company_name;
+    """,
+
+    "Zero projects and problems solved": """
+        SELECT *
+        FROM Programming
+        WHERE mini_projects = 0 AND problems_solved = 0;
+    """,
+
+    "Top certified and high project scorers": """
+        SELECT DISTINCT s.student_id, s.name,
+                        p.certifications_earned, p.latest_project_score
+        FROM Students s
+        JOIN Programming p ON s.student_id = p.student_id
+        WHERE p.certifications_earned > 0
+        ORDER BY p.certifications_earned DESC, p.latest_project_score DESC;
+    """,
+
+    "Top leadership skill performers": """
+        SELECT s.student_id, s.name,
+               ss.communication, ss.teamwork, ss.presentation, ss.leadership,
+               ss.critical_thinking, ss.interpersonal_skills
+        FROM SoftSkills ss
+        JOIN Students s ON ss.student_id = s.student_id
+        ORDER BY ss.leadership DESC
+        LIMIT 10;
+    """,
+
+    "students details": """
+        SELECT 
+            s.student_id,
+            s.name,
+            MAX(COALESCE(p.certifications_earned, 0)) AS certifications_earned,
+            MAX(COALESCE(p.problems_solved, 0)) AS problems_solved,
+            MAX(COALESCE(p.latest_project_score, 0)) AS project_score,
+            MAX(COALESCE(ss.communication + ss.teamwork + ss.presentation + ss.leadership + ss.critical_thinking + ss.interpersonal_skills, 0)) AS soft_skill_score,
+            CASE WHEN MAX(pl.placement_status) = 'Placed' THEN 'Placed' ELSE 'Not Placed' END AS placement_status
+        FROM Students s
+        LEFT JOIN Programming p ON s.student_id = p.student_id
+        LEFT JOIN SoftSkills ss ON s.student_id = ss.student_id
+        LEFT JOIN Placements pl ON s.student_id = pl.student_id
+        GROUP BY s.student_id, s.name;
+    """
+}
+
+st.markdown("### Pick a Report")
+selected_query = st.selectbox("", ["-- Select a Report --"] + list(queries.keys()))
+
+if st.button("Submit") and selected_query != "-- Select a Report --":
+    query = queries[selected_query]
+    searching_placeholder = st.empty()
+    searching_placeholder.write(" Searching result...")
+
+    try:
+        start_time = time.time()
+        conn = get_connection()
+        df = pd.read_sql(query, conn)
+        conn.close()
+        end_time = time.time()
+
+        if df.empty:
+            st.warning("No results found.")
+        else:
+            st.markdown(f"Found {len(df)} records.")
+            searching_placeholder.empty()
+            st.caption(f"Executed in {end_time - start_time:.2f} seconds")
+            st.dataframe(df, use_container_width=True)
+
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(" Download Result", csv, "query_result.csv", "text/csv")
+
+    except Exception as e:
+        st.error(f" Error: {e}")
+
+# 🔍 Search by Student Name or ID
+st.markdown("#### 🔍 Search Student Summary by Name or ID")
+search_input = st.text_input("Enter student name or ID")
+
+if st.button("Search Student Summary") and search_input:
+    try:
+        conn = get_connection()
+        query = """
+    SELECT 
+      s.student_id,
+      s.name,
+      s.age,
+      s.email,
+      s.phone,
+      s.enrollment_year,
+      s.course_batch,
+      s.city,
+      s.graduation_year,
+      MAX(COALESCE(p.certifications_earned, 0)) AS certifications_earned,
+      MAX(COALESCE(p.problems_solved, 0)) AS problems_solved,
+      MAX(COALESCE(p.latest_project_score, 0)) AS project_score,
+      MAX(COALESCE(ss.communication + ss.teamwork + ss.presentation + ss.leadership + ss.critical_thinking + ss.interpersonal_skills, 0)) AS soft_skill_score,
+      CASE WHEN MAX(pl.placement_status) = 'Placed' THEN 'Placed' ELSE 'Not Placed' END AS placement_status,
+      MAX(pl.company_name) AS company_name,
+      MAX(pl.placement_package) AS placement_package
+    FROM Students s
+    LEFT JOIN Programming p ON s.student_id = p.student_id
+    LEFT JOIN SoftSkills ss ON s.student_id = ss.student_id
+    LEFT JOIN Placements pl ON s.student_id = pl.student_id
+    WHERE s.name LIKE %s OR s.student_id = %s
+    GROUP BY s.student_id, s.name;
+"""
+
+        df = pd.read_sql(query, conn, params=(f"%{search_input}%", search_input))
+        conn.close()
+
+        if df.empty:
+            st.warning("No student found.")
+        else:
+            st.success("Student summary found:")
+            st.dataframe(df, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error: {e}")
