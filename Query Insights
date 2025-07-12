@@ -1,0 +1,32 @@
+1)Student count per batch
+Displays the number of students in each course batch.
+
+2)Placed students with details
+Lists students who are placed along with company and placement details.
+
+3)Not placed students with certifications
+Shows unplaced students along with their number of certifications.
+
+4)Top 5 by latest project score
+Retrieves the top five students based on their latest project scores.
+
+5)Weakest soft skill performers
+Lists five students with the lowest total soft skill scores.
+
+6)Highly certified students (>2)
+Finds students who have earned more than two certifications.
+
+7)Avg. placement package per company
+Calculates the average placement package offered by each company.
+
+8)Zero projects and problems solved
+Identifies students who haven't completed any projects or solved problems.
+
+9)Top certified and high project scorers
+Shows students with the most certifications and high project scores.
+
+10)Top leadership skill performers
+Lists students with the highest leadership skill ratings.
+
+11)students details
+Provides a complete summary of all students' performance and placement status.
