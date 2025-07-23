@@ -1,6 +1,7 @@
-pip install faker;
-
+!pip install streamlit pyngrok
 !pip install mysql-connector-python
+
+!ngrok config add-authtoken 2zSRvRvkfF3NnRnPZeJnUBPbFnP_CuFkUD8z7UABnCppuTVg
 
 from pyngrok import ngrok
 ngrok.kill()
