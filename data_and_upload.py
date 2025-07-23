@@ -3,8 +3,6 @@ pip install faker;
 
 !pip install mysql-connector-python
 
-from faker import Faker
-
 import random
 import pandas as pd
 import mysql.connector
